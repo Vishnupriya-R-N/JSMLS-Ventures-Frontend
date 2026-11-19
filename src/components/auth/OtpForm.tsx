@@ -14,7 +14,7 @@ const emptyDigits = () => Array<string>(LENGTH).fill("");
 
 const formatTime = (s: number) =>
   `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
-
+//checking
 export default function OtpForm({ email }: { email: string }) {
   const router = useRouter();
   const [digits, setDigits] = useState<string[]>(emptyDigits());
