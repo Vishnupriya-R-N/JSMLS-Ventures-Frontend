@@ -1,5 +1,7 @@
 import type { Role } from "@/types";
 
+
+
 export const SITE = {
   name: "Victory Club",
   company: "JSMLS Ventures LLP",
@@ -22,7 +24,8 @@ export const HOME_BY_ROLE: Record<Role, string> = {
 };
 
 
-
+// The PDF (Section 7) fixes the structure at 3 levels. Used only if the backend doesn't send a number.
+export const TOTAL_LEVELS = 3;
 
 export const DEMO_NOTICE =
   "Demonstration platform. Illustrative interface only. No actual payment entitlement or income is represented.";

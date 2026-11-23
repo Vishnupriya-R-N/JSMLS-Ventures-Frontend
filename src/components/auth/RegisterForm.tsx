@@ -1,12 +1,13 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import Alert from "@/components/ui/Alert";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import Modal from "@/components/ui/Modal";
-import { registerDemo } from "@/services/auth";
+import { registerUser, sendOtp } from "@/services/auth";
 import { isEmail, isIndianMobile, passwordError } from "@/lib/validators";
 
 type Field = "fullName" | "email" | "mobile" | "password" | "confirm" | "terms";
@@ -24,6 +25,7 @@ export default function RegisterForm() {
   const [errors, setErrors] = useState<Errors>({});
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [verifyLink, setVerifyLink] = useState<string | null>(null);
 
   function validate(): Errors {
     const e: Errors = {};
@@ -39,26 +41,42 @@ export default function RegisterForm() {
 
   async function onSubmit(ev: React.FormEvent) {
     ev.preventDefault();
+    if (loading) return;
+
     setMessage(null);
+    setVerifyLink(null);
     const e = validate();
     setErrors(e);
     if (Object.keys(e).length) return;
 
     setLoading(true);
-    const res = await registerDemo({
+
+    const res = await registerUser({
       fullName: fullName.trim(),
       email: email.trim(),
       mobile: mobile.replace(/[\s-]/g, ""),
       password,
       acceptedTerms: terms,
     });
-    setLoading(false);
 
-    if (res.ok) {
-      router.push(`/verify-otp?email=${encodeURIComponent(email.trim())}`);
+    if (!res.ok) {
+      setLoading(false);
+      setMessage(res.message);
       return;
     }
-    setMessage(res.message);
+
+    // The account exists now. Ask for the first OTP before opening the verification page.
+    const link = `/verify-otp?email=${encodeURIComponent(email.trim())}`;
+    const otp = await sendOtp(email.trim());
+    setLoading(false);
+
+    if (otp.ok) {
+      router.push(link);
+      return;
+    }
+
+    setMessage(`Your account was created, but the verification code could not be sent: ${otp.message}`);
+    setVerifyLink(link);
   }
 
   return (
@@ -134,6 +152,12 @@ export default function RegisterForm() {
       </div>
 
       {message && <Alert tone="error">{message}</Alert>}
+      {verifyLink && (
+        <Link href={verifyLink} className="text-sm font-semibold text-navy-600 hover:underline">
+          Go to the verification page to request a new code →
+        </Link>
+      )}
+
       <Button type="submit" block disabled={loading}>
         {loading ? "Please wait…" : "Create account"}
       </Button>

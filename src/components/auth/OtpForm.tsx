@@ -8,13 +8,13 @@ import Button from "@/components/ui/Button";
 import { sendOtp, verifyOtp } from "@/services/auth";
 
 const LENGTH = 6;
-const RESEND_SECONDS = 30;
+const RESEND_SECONDS = 60;
 const EXPIRY_SECONDS = 300;
 const emptyDigits = () => Array<string>(LENGTH).fill("");
 
 const formatTime = (s: number) =>
   `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
-
+//checking
 export default function OtpForm({ email }: { email: string }) {
   const router = useRouter();
   const [digits, setDigits] = useState<string[]>(emptyDigits());

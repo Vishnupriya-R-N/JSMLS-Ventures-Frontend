@@ -11,8 +11,33 @@ export type RegisterPayload = {
   acceptedTerms: boolean;
 };
 
+export type ServiceResult = { ok: boolean; message: string };
+
 export type AccountStatus = "active" | "inactive" | "suspended";
 
+export type DashboardData = {
+  fullName: string;
+  userId: string;
+  accountStatus: AccountStatus;
+  currentStage: string;
+  totalLevels: number;
+};
 
+export type ProfileData = {
+  fullName: string;
+  userId: string;
+  email: string;
+  mobile: string;
+};
 
-export type ServiceResult = { ok: boolean; message: string };
+// "/dashboard/levels " page section things
+export type PositionStatus = "occupied" | "empty";
+
+export type LevelPosition = {
+  id: string;
+  level: 1 | 2 | 3;
+  slot: number;
+  status: PositionStatus;
+  userId?: string;
+};
+
