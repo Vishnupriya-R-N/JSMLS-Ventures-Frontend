@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "../../../../lib/prisma";
 import bcrypt from "bcryptjs";
+import { randomUUID } from "node:crypto";
 
 export async function POST(request: Request) {
   try {
@@ -106,37 +107,28 @@ export async function POST(request: Request) {
     // 10. Hash password
     const passwordHash = await bcrypt.hash(password, 12);
 
-    // 11. Generate unique user ID and create user
-    const newUser = await prisma.$transaction(async (tx) => {
-      const result = await tx.$queryRaw<{ next_id: bigint }[]>`
-        SELECT nextval('"vc_user_id_seq"') AS next_id
-      `;
+   // 11. Generate a unique user ID without PostgreSQL sequences
+const userId = `VC${randomUUID().replace(/-/g, "").toUpperCase()}`;
 
-      const userId =
-        "VC" + result[0].next_id.toString().padStart(6, "0");
-
-      return tx.user.create({
-        data: {
-          userId,
-          fullName: cleanName,
-          email: cleanEmail,
-          mobile: cleanMobile,
-          passwordHash,
-          // Role defaults to PARTICIPANT.
-          // isVerified defaults to false.
-        },
-        select: {
-          id: true,
-          userId: true,
-          fullName: true,
-          email: true,
-          mobile: true,
-          role: true,
-          isVerified: true,
-          createdAt: true,
-        },
-      });
-    });
+const newUser = await prisma.user.create({
+  data: {
+    userId,
+    fullName: cleanName,
+    email: cleanEmail,
+    mobile: cleanMobile,
+    passwordHash,
+  },
+  select: {
+    id: true,
+    userId: true,
+    fullName: true,
+    email: true,
+    mobile: true,
+    role: true,
+    isVerified: true,
+    createdAt: true,
+  },
+});
 
     // 12. Send success response
     return NextResponse.json(
