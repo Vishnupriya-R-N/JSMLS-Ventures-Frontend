@@ -13,3 +13,10 @@ export const passwordError = (v: string): string | null => {
   if (!/\d/.test(v)) return "Include at least one number.";
   return null;
 };
+
+export const maskEmail = (email: string): string => {
+  const [user = "", domain = ""] = email.trim().split("@");
+  if (!domain) return email;
+  const visible = user.slice(0, Math.min(2, user.length));
+  return `${visible}***@${domain}`;
+};
