@@ -87,3 +87,57 @@ export function hasRole(
   return allowedRoles.includes(user.role);
 }
 
+export interface PasswordResetPayload {
+  userId: string;
+  email: string;
+}
+
+export function signPasswordResetToken(userId: string, email: string): string {
+  const jwtSecret = process.env.JWT_SECRET;
+  if (!jwtSecret) {
+    throw new Error("JWT_SECRET is not configured");
+  }
+
+  return jwt.sign(
+    {
+      purpose: "password_reset",
+      userId,
+      email,
+    },
+    jwtSecret,
+    { expiresIn: "10m" }
+  );
+}
+
+export function verifyPasswordResetToken(
+  token: string
+): PasswordResetPayload | null {
+  try {
+    const jwtSecret = process.env.JWT_SECRET;
+    if (!jwtSecret) {
+      throw new Error("JWT_SECRET is not configured");
+    }
+
+    const decoded = jwt.verify(token, jwtSecret);
+    if (typeof decoded === "string") {
+      return null;
+    }
+
+    const payload = decoded as JwtPayload;
+    if (
+      payload.purpose !== "password_reset" ||
+      typeof payload.userId !== "string" ||
+      typeof payload.email !== "string"
+    ) {
+      return null;
+    }
+
+    return {
+      userId: payload.userId,
+      email: payload.email,
+    };
+  } catch {
+    return null;
+  }
+}
+

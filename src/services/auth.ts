@@ -1,9 +1,13 @@
+import { isEmail, passwordError } from "@/lib/validators";
 import type { LoginPayload, RegisterPayload, ServiceResult, Role } from "@/types";
 
 const LOGIN_PATH = "/auth/login";
 const REGISTER_PATH = "/auth/register";
 const SEND_OTP_PATH = "/auth/send-otp";
 const VERIFY_OTP_PATH = "/auth/verify-otp";
+const FORGOT_SEND_OTP_PATH = "/auth/forgot-password/send-otp";
+const FORGOT_VERIFY_OTP_PATH = "/auth/forgot-password/verify-otp";
+const FORGOT_RESET_PATH = "/auth/forgot-password/reset";
 
 export type LoginUser = { userId?: string; fullName?: string; role?: Role };
 
@@ -35,7 +39,7 @@ export async function loginUser(payload: LoginPayload): Promise<LoginResult> {
     if (res.ok && data.success) {
       return { ok: true, message: data.message ?? "Login successful.", user: data.user };
     }
-    
+
     // Handle specific backend error codes
     if (res.status === 401) {
       return { ok: false, message: data.message ?? "Invalid email or password." };
@@ -53,7 +57,7 @@ export async function loginUser(payload: LoginPayload): Promise<LoginResult> {
     if (res.status === 400) {
       return { ok: false, message: data.message ?? "Please check your details and try again." };
     }
-    
+
     // Fallback for any other error
     return { ok: false, message: data.message ?? "Login failed. Please try again later." };
   } catch {
@@ -64,16 +68,16 @@ export async function loginUser(payload: LoginPayload): Promise<LoginResult> {
 export async function registerUser(payload: RegisterPayload): Promise<ServiceResult> {
   try {
     const { res, data } = await postJson(REGISTER_PATH, payload);
-    
+
     if (res.ok && data.success) {
       return { ok: true, message: data.message ?? "Registration successful." };
     }
-    
+
     // Handle validation errors or duplicate emails
     if (res.status === 400 || res.status === 409) {
       return { ok: false, message: data.message ?? "Registration failed. Please check your details." };
     }
-    
+
     return { ok: false, message: data.message ?? "Registration failed. Please try again later." };
   } catch {
     return { ok: false, message: "Cannot reach the server. Check your connection and try again." };
@@ -89,7 +93,7 @@ export type VerifyOtpResult = { ok: boolean; message: string };
 export async function sendOtp(email: string): Promise<SendOtpResult> {
   try {
     const { res, data } = await postJson(SEND_OTP_PATH, { email });
-    
+
     if (res.ok) {
       return {
         ok: true,
@@ -98,7 +102,7 @@ export async function sendOtp(email: string): Promise<SendOtpResult> {
         resendAfterSeconds: data.resendAfterSeconds ?? 60,
       };
     }
-    
+
     if (res.status === 429) {
       const retry = Number(res.headers.get("Retry-After")) || data.retryAfterSeconds || 60;
       return {
@@ -107,11 +111,11 @@ export async function sendOtp(email: string): Promise<SendOtpResult> {
         retryAfterSeconds: retry,
       };
     }
-    
+
     if (res.status === 400) {
       return { ok: false, message: data.message ?? "Please check the email address and try again." };
     }
-    
+
     return { ok: false, message: data.message ?? "Could not send the OTP. Please try again later." };
   } catch {
     return { ok: false, message: "Cannot reach the server. Check your connection and try again." };
@@ -121,18 +125,147 @@ export async function sendOtp(email: string): Promise<SendOtpResult> {
 export async function verifyOtp(email: string, otp: string): Promise<VerifyOtpResult> {
   try {
     const { res, data } = await postJson(VERIFY_OTP_PATH, { email, otp });
-    
+
     if (res.ok) {
       return { ok: true, message: data.message ?? "Email verified successfully." };
     }
-    
+
     if (res.status === 429) {
       return { ok: false, message: data.message ?? "Too many attempts. Please wait and try again." };
     }
-    
+
     // 400/401/410 etc.: wrong or expired OTP. Show the backend's own message.
     return { ok: false, message: data.message ?? "Incorrect or expired OTP. Please try again." };
   } catch {
     return { ok: false, message: "Cannot reach the server. Check your connection and try again." };
+  }
+}
+
+
+export type SendResetOtpResult =
+  | { ok: true; message: string; expiresInSeconds: number; resendAfterSeconds: number }
+  | { ok: false; message: string; retryAfterSeconds?: number; notVerified?: boolean };
+
+export async function sendPasswordResetOtp(email: string): Promise<SendResetOtpResult> {
+  const normalized = email.trim().toLowerCase();
+  if (!normalized || !isEmail(normalized)) {
+    return {
+      ok: false,
+      message: "Please enter a valid email address.",
+    };
+  }
+
+  try {
+    const { res, data } = await postJson(FORGOT_SEND_OTP_PATH, { email: normalized });
+
+    if (res.ok && data.success) {
+      return {
+        ok: true,
+        message: data.message ?? "Password reset OTP sent to your email.",
+        expiresInSeconds: data.expiresInSeconds ?? data.expiresIn ?? 300,
+        resendAfterSeconds: data.resendAfterSeconds ?? 60,
+      };
+    }
+
+    if (res.status === 429) {
+      const retry = Number(res.headers.get("Retry-After")) || data.retryAfterSeconds || 60;
+      return {
+        ok: false,
+        message: data.message ?? "Too many requests. Please try again later.",
+        retryAfterSeconds: retry,
+      };
+    }
+
+    if (res.status === 403) {
+      return {
+        ok: false,
+        message: data.message ?? "Please verify your email before resetting your password.",
+        notVerified: data.code === "EMAIL_NOT_VERIFIED",
+      };
+    }
+
+    return {
+      ok: false,
+      message: data.message ?? "Could not send the OTP. Please try again later.",
+    };
+  } catch {
+    return {
+      ok: false,
+      message: "Cannot reach the server. Check your connection and try again.",
+    };
+  }
+}
+
+export async function verifyPasswordResetOtp(email: string, otp: string): Promise<VerifyOtpResult> {
+  const normalized = email.trim().toLowerCase();
+  if (!normalized || !isEmail(normalized) || !/^\d{6}$/.test(otp)) {
+    return {
+      ok: false,
+      message: "Please enter a valid 6-digit OTP.",
+    };
+  }
+
+  try {
+    const { res, data } = await postJson(FORGOT_VERIFY_OTP_PATH, { email: normalized, otp });
+
+    if (res.ok && data.success) {
+      return {
+        ok: true,
+        message: data.message ?? "OTP verified successfully.",
+      };
+    }
+
+    if (res.status === 429) {
+      return {
+        ok: false,
+        message: data.message ?? "Too many attempts. Please wait and try again.",
+      };
+    }
+
+    return {
+      ok: false,
+      message: data.message ?? "Incorrect or expired OTP. Please try again.",
+    };
+  } catch {
+    return {
+      ok: false,
+      message: "Cannot reach the server. Check your connection and try again.",
+    };
+  }
+}
+
+export async function resetPassword(payload: { email?: string; newPassword: string; confirmPassword?: string; }): Promise<ServiceResult> {
+  const pwIssue = passwordError(payload.newPassword ?? "");
+  if (pwIssue) {
+    return { ok: false, message: pwIssue };
+  }
+
+  if (payload.confirmPassword !== undefined && payload.confirmPassword !== payload.newPassword) {
+    return { ok: false, message: "Passwords do not match." };
+  }
+
+  try {
+    const { res, data } = await postJson(FORGOT_RESET_PATH, {
+      email: payload.email?.trim().toLowerCase(),
+      newPassword: payload.newPassword,
+      confirmPassword: payload.confirmPassword,
+    });
+
+    if (res.ok && data.success) {
+      return {
+        ok: true,
+        message: data.message ?? "Your password has been reset successfully. Redirecting to login…",
+      };
+    }
+
+    return {
+      ok: false,
+      message: data.message ?? "Could not reset your password. Please try again.",
+    };
+  } catch {
+    return {
+      ok: false,
+      message: "Cannot reach the server. Check your connection and try again.",
+    };
   }
 }
