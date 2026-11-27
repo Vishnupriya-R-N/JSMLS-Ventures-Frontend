@@ -24,6 +24,10 @@ model User {
   otpVerification   OtpVerification?
   passwordResetOtp PasswordResetOtp?
 
+  // Referral relationships
+  referralsMade    Referral[] @relation("Referrer")
+  referralReceived Referral?  @relation("ReferredUser")
+
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 }
@@ -62,9 +66,38 @@ model PasswordResetOtp {
   updatedAt       DateTime @updatedAt
 }
 
+model Referral {
+  id              String   @id @default(uuid())
+
+  referrerId      String
+  referredUserId  String   @unique
+
+  referrer        User     @relation("Referrer", fields: [referrerId], references: [id], onDelete: Cascade)
+  referredUser    User     @relation("ReferredUser", fields: [referredUserId], references: [id], onDelete: Cascade)
+
+  createdAt       DateTime @default(now())
+
+  @@index([referrerId])
+}
+
 enum Role {
   PARTICIPANT
   ADMIN
   FINANCE_OFFICER
   SUPER_ADMIN
+}
+
+model StageConfiguration {
+  id          String @id @default(uuid())
+  stageNumber Int    @unique
+
+  firstPersonFigure  Decimal @db.Decimal(12, 2)
+  secondPersonFigure Decimal @db.Decimal(12, 2)
+  thirdPersonFigure  Decimal @db.Decimal(12, 2)
+
+  level12Total Decimal @db.Decimal(12, 2)
+  level3Total  Decimal @db.Decimal(12, 2)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
